@@ -1,12 +1,43 @@
 use gltf_derive::Validate;
-use serde_derive::{Serialize, Deserialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde_json::Value;
+use std::collections::HashMap;
 
 /// The root object of a glTF 2.0 asset.
 #[derive(Clone, Debug, Default, Deserialize, Serialize, Validate)]
 pub struct Root {
-    #[cfg(feature = "KHR_lights_punctual")]
-    #[serde(default, rename = "KHR_lights_punctual", skip_serializing_if = "Option::is_none")]
-    pub khr_lights_punctual: Option<KhrLightsPunctual>,
+    #[serde(default, flatten)]
+    map: HashMap<String, Value>,
+}
+
+#[derive(Debug)]
+pub enum ExtensionError {
+    NotFound,
+    JsonError(serde_json::Error),
+}
+
+impl From<serde_json::Error> for ExtensionError {
+    fn from(e: serde_json::Error) -> Self {
+        Self::JsonError(e)
+    }
+}
+
+impl Root {
+    pub fn extension<T>(&self, name: &str) -> Result<T, ExtensionError>
+    where
+        T: DeserializeOwned,
+    {
+        serde_json::from_value(self.map.get(name).ok_or(ExtensionError::NotFound)?.clone())
+            .map_err(|e| e.into())
+    }
+    pub fn set_extension<T>(&mut self, name: &str, t: T) -> Option<()>
+    where
+        T: Serialize,
+    {
+        self.map
+            .insert(name.to_owned(), serde_json::to_value(t).ok()?);
+        Some(())
+    }
 }
 
 #[cfg(feature = "KHR_lights_punctual")]
@@ -14,21 +45,4 @@ pub struct Root {
 pub struct KhrLightsPunctual {
     /// Lights at this node.
     pub lights: Vec<crate::extensions::scene::khr_lights_punctual::Light>,
-}
-
-#[cfg(feature = "KHR_lights_punctual")]
-impl crate::root::Get<crate::extensions::scene::khr_lights_punctual::Light> for crate::Root {
-    fn get(&self, id: crate::Index<crate::extensions::scene::khr_lights_punctual::Light>)
-        -> Option<&crate::extensions::scene::khr_lights_punctual::Light>
-    {
-        if let Some(extensions) = self.extensions.as_ref() {
-            if let Some(khr_lights_punctual) = extensions.khr_lights_punctual.as_ref() {
-                khr_lights_punctual.lights.get(id.value())
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    }
 }

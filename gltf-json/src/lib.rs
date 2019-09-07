@@ -93,6 +93,7 @@ pub use serde_json::Value;
 /// being bound to a specific version of `serde_json`.
 pub mod deserialize {
     pub use serde_json::{from_reader, from_slice, from_str, from_value};
+    pub use serde::de::DeserializeOwned;
 }
 
 /// Re-exports of `serde_json` serialization functions.
